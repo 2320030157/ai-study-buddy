@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { signIn } from 'next-auth/react';
 
 export default function SignUp() {
   const [formData, setFormData] = useState({
@@ -20,6 +21,7 @@ export default function SignUp() {
     setError('');
 
     try {
+      // First create the account
       const res = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: {
@@ -31,12 +33,25 @@ export default function SignUp() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || 'Something went wrong');
+        throw new Error(data.error || 'Failed to create account');
       }
 
-      router.push('/login');
+      // Then sign in automatically
+      const result = await signIn('credentials', {
+        email: formData.email,
+        password: formData.password,
+        redirect: false,
+      });
+
+      if (result?.error) {
+        throw new Error(result.error);
+      }
+
+      router.push('/chat');
+      router.refresh();
     } catch (err: any) {
       setError(err.message);
+      console.error('Signup error:', err);
     } finally {
       setLoading(false);
     }
