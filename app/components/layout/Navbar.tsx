@@ -54,7 +54,7 @@ export const Navbar = () => {
                   <Button variant="outline" size="sm">Resources</Button>
                 </Link>
                 <Link href="/chat">
-                  <Button variant="primary" size="sm">Start Learning</Button>
+                  <Button variant="default" size="sm">Start Learning</Button>
                 </Link>
                 <Button 
                   variant="outline" 
