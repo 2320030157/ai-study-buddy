@@ -16,15 +16,20 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
+
     setLoading(true);
     setError('');
 
     try {
+      console.log('Attempting to sign in with email:', formData.email);
       const result = await signIn('credentials', {
         email: formData.email.toLowerCase(),
         password: formData.password,
         redirect: false,
       });
+
+      console.log('Sign in result:', result);
 
       if (result?.error) {
         setError(result.error);
@@ -32,15 +37,16 @@ export default function Login() {
       }
 
       if (!result?.ok) {
-        setError('Failed to sign in');
+        setError('Failed to sign in. Please try again.');
         return;
       }
 
+      console.log('Sign in successful, redirecting...');
       router.push('/chat');
       router.refresh();
     } catch (err: any) {
-      setError('An error occurred during sign in');
       console.error('Sign in error:', err);
+      setError('An unexpected error occurred. Please try again later.');
     } finally {
       setLoading(false);
     }
@@ -68,7 +74,7 @@ export default function Login() {
           )}
           <div className="rounded-md shadow-sm space-y-4">
             <div>
-              <label htmlFor="email" className="sr-only">
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
                 Email address
               </label>
               <input
@@ -77,13 +83,13 @@ export default function Login() {
                 type="email"
                 required
                 className="appearance-none rounded-lg relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Email address"
+                placeholder="Enter your email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               />
             </div>
             <div>
-              <label htmlFor="password" className="sr-only">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                 Password
               </label>
               <input
@@ -92,7 +98,7 @@ export default function Login() {
                 type="password"
                 required
                 className="appearance-none rounded-lg relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Password"
+                placeholder="Enter your password"
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
               />
