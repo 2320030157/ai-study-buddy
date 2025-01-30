@@ -17,14 +17,31 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
-          await connectDB();
+          await Promise.race([
+            connectDB(),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Connection timeout')), 10000)
+            )
+          ]);
 
-          const user = await User.findOne({ email: credentials.email.toLowerCase() });
+          const user = await Promise.race([
+            User.findOne({ email: credentials.email.toLowerCase() }),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Query timeout')), 5000)
+            )
+          ]);
+
           if (!user) {
             return null;
           }
 
-          const isPasswordValid = await user.comparePassword(credentials.password);
+          const isPasswordValid = await Promise.race([
+            user.comparePassword(credentials.password),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Password verification timeout')), 5000)
+            )
+          ]);
+
           if (!isPasswordValid) {
             return null;
           }

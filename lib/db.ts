@@ -11,7 +11,15 @@ export const connectDB = async () => {
   }
 
   try {
-    const db = await mongoose.connect(MONGODB_URI);
+    const db = await mongoose.connect(MONGODB_URI, {
+      connectTimeoutMS: 10000, // 10 seconds
+      socketTimeoutMS: 10000,
+      serverSelectionTimeoutMS: 10000,
+      maxPoolSize: 10,
+      minPoolSize: 5,
+      maxIdleTimeMS: 10000,
+      retryWrites: true,
+    });
     
     isConnected = db.connections[0].readyState === 1;
     console.log('MongoDB connected successfully');
@@ -24,6 +32,11 @@ export const connectDB = async () => {
 
     mongoose.connection.on('disconnected', () => {
       console.log('MongoDB disconnected');
+      isConnected = false;
+    });
+
+    mongoose.connection.on('timeout', () => {
+      console.log('MongoDB connection timeout');
       isConnected = false;
     });
 
