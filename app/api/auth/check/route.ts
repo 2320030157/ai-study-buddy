@@ -3,6 +3,8 @@ import { User } from '@/models/User';
 import { connectDB } from '@/lib/db';
 import jwt from 'jsonwebtoken';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: Request) {
   try {
     const token = req.headers.get('Authorization')?.replace('Bearer ', '');
