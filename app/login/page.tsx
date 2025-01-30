@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { signIn } from 'next-auth/react';
 
 export default function Login() {
   const [formData, setFormData] = useState({
@@ -19,23 +20,22 @@ export default function Login() {
     setError('');
 
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
+      const result = await signIn('credentials', {
+        email: formData.email,
+        password: formData.password,
+        redirect: false,
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Invalid credentials');
+      if (result?.error) {
+        setError(result.error);
+        return;
       }
 
       router.push('/chat');
+      router.refresh();
     } catch (err: any) {
-      setError(err.message);
+      setError('An error occurred during sign in');
+      console.error('Sign in error:', err);
     } finally {
       setLoading(false);
     }
