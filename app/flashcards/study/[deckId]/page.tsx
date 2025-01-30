@@ -193,12 +193,13 @@ export default function StudyDeckPage({ params }: { params: { deckId: string } }
             >
               Exit
             </Button>
-            <Button variant="primary" onClick={handleFlip} disabled={saving}>
+            <Button variant="default" onClick={handleFlip} disabled={saving}>
               Flip Card 🔄
             </Button>
           </div>
           <Button
-            variant="gradient"
+            variant="default"
+            className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600"
             onClick={handleNext}
             disabled={currentCardIndex === deck.cards.length - 1 || saving}
           >
