@@ -23,7 +23,7 @@ const userSchema = new mongoose.Schema({
   email: {
     type: String,
     required: [true, 'Please provide an email'],
-    unique: true,
+    index: true,
     lowercase: true,
     trim: true,
     match: [/^\S+@\S+\.\S+$/, 'Please provide a valid email']
@@ -72,8 +72,5 @@ userSchema.methods.comparePassword = async function(candidatePassword: string): 
     throw error;
   }
 };
-
-// Remove duplicate index warning by only defining the index once
-userSchema.index({ email: 1 }, { unique: true });
 
 export const User = mongoose.models.User || mongoose.model<IUser>('User', userSchema); 
