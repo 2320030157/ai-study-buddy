@@ -17,6 +17,8 @@ export default function SignUp() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
+
     setLoading(true);
     setError('');
 
@@ -33,25 +35,27 @@ export default function SignUp() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to create account');
+        setError(data.error || 'Failed to create account');
+        return;
       }
 
       // Then sign in automatically
       const result = await signIn('credentials', {
-        email: formData.email,
+        email: formData.email.toLowerCase(),
         password: formData.password,
         redirect: false,
       });
 
-      if (result?.error) {
-        throw new Error(result.error);
+      if (!result?.ok) {
+        setError('Account created but failed to sign in');
+        router.push('/login');
+        return;
       }
 
       router.push('/chat');
       router.refresh();
-    } catch (err: any) {
-      setError(err.message);
-      console.error('Signup error:', err);
+    } catch (err) {
+      setError('Failed to create account');
     } finally {
       setLoading(false);
     }
@@ -79,7 +83,7 @@ export default function SignUp() {
           )}
           <div className="rounded-md shadow-sm space-y-4">
             <div>
-              <label htmlFor="name" className="sr-only">
+              <label htmlFor="name" className="block text-sm font-medium text-gray-700">
                 Full Name
               </label>
               <input
@@ -88,13 +92,13 @@ export default function SignUp() {
                 type="text"
                 required
                 className="appearance-none rounded-lg relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Full Name"
+                placeholder="Enter your full name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               />
             </div>
             <div>
-              <label htmlFor="email" className="sr-only">
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
                 Email address
               </label>
               <input
@@ -103,13 +107,13 @@ export default function SignUp() {
                 type="email"
                 required
                 className="appearance-none rounded-lg relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Email address"
+                placeholder="Enter your email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               />
             </div>
             <div>
-              <label htmlFor="password" className="sr-only">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                 Password
               </label>
               <input
@@ -118,7 +122,7 @@ export default function SignUp() {
                 type="password"
                 required
                 className="appearance-none rounded-lg relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Password"
+                placeholder="Enter your password"
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
               />
