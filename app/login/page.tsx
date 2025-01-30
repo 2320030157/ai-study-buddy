@@ -21,13 +21,18 @@ export default function Login() {
 
     try {
       const result = await signIn('credentials', {
-        email: formData.email,
+        email: formData.email.toLowerCase(),
         password: formData.password,
         redirect: false,
       });
 
       if (result?.error) {
         setError(result.error);
+        return;
+      }
+
+      if (!result?.ok) {
+        setError('Failed to sign in');
         return;
       }
 

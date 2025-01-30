@@ -2,7 +2,6 @@ import { NextAuthOptions } from 'next-auth';
 import { connectDB } from '@/lib/db';
 import { User } from '@/models/User';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import bcrypt from 'bcryptjs';
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -22,16 +21,12 @@ export const authOptions: NextAuthOptions = {
 
           const user = await User.findOne({ email: credentials.email.toLowerCase() });
           if (!user) {
-            throw new Error('No user found with this email');
+            throw new Error('Invalid email or password');
           }
 
-          const isPasswordValid = await bcrypt.compare(
-            credentials.password,
-            user.password
-          );
-
+          const isPasswordValid = await user.comparePassword(credentials.password);
           if (!isPasswordValid) {
-            throw new Error('Invalid password');
+            throw new Error('Invalid email or password');
           }
 
           return {
@@ -41,7 +36,7 @@ export const authOptions: NextAuthOptions = {
           };
         } catch (error) {
           console.error('Auth error:', error);
-          return null;
+          throw error; // Let NextAuth handle the error
         }
       },
     }),
