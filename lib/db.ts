@@ -7,78 +7,52 @@ let isConnected = false;
 
 export const connectDB = async () => {
   if (isConnected) {
-    return;
+    return mongoose.connection;
   }
 
   try {
+    // Optimize connection options for Vercel serverless environment
     const db = await mongoose.connect(MONGODB_URI, {
-      connectTimeoutMS: 10000, // 10 seconds
-      socketTimeoutMS: 10000,
-      serverSelectionTimeoutMS: 10000,
-      maxPoolSize: 10,
-      minPoolSize: 5,
-      maxIdleTimeMS: 10000,
+      connectTimeoutMS: 5000, // Reduced from 10s to 5s
+      socketTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 5000,
+      maxPoolSize: 5, // Reduced pool size for serverless
+      minPoolSize: 1,
+      maxIdleTimeMS: 5000,
       retryWrites: true,
     });
-    
+
     isConnected = db.connections[0].readyState === 1;
     console.log('MongoDB connected successfully');
 
-    // Handle connection events
+    // Single event handler for connection issues
     mongoose.connection.on('error', (err) => {
       console.error('MongoDB connection error:', err);
       isConnected = false;
     });
 
-    mongoose.connection.on('disconnected', () => {
-      console.log('MongoDB disconnected');
-      isConnected = false;
-    });
-
-    mongoose.connection.on('timeout', () => {
-      console.log('MongoDB connection timeout');
-      isConnected = false;
-    });
-
-    // Clean up on app termination
-    process.on('SIGINT', async () => {
-      try {
-        await mongoose.connection.close();
-        console.log('MongoDB connection closed through app termination');
-        process.exit(0);
-      } catch (err) {
-        console.error('Error closing MongoDB connection:', err);
-        process.exit(1);
-      }
-    });
-
+    return mongoose.connection;
   } catch (error) {
     console.error('Error connecting to MongoDB:', error);
+    isConnected = false;
     throw error;
   }
 };
 
-// Handle connection events
-mongoose.connection.on('connected', () => {
-  console.log('MongoDB connected successfully');
-});
-
-mongoose.connection.on('error', (err) => {
-  console.error('MongoDB connection error:', err);
-});
-
-mongoose.connection.on('disconnected', () => {
-  console.log('MongoDB disconnected');
-});
-
-// Handle process termination
-if (process.env.NODE_ENV === 'development') {
+// Clean up on app termination
+if (process.env.NODE_ENV !== 'production') {
   process.on('SIGINT', async () => {
-    if (mongoose.connection.readyState === 1) {
-      await mongoose.connection.close();
+    try {
+      if (mongoose.connection.readyState === 1) {
+        await mongoose.connection.close();
+        console.log('MongoDB connection closed through app termination');
+      }
+      process.exit(0);
+    } catch (err) {
+      console.error('Error closing MongoDB connection:', err);
+      process.exit(1);
     }
-    process.exit(0);
   });
 }
 
-export default connectDB; 
+export default connectDB;

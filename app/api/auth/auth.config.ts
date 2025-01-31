@@ -2,6 +2,7 @@ import { NextAuthOptions } from 'next-auth';
 import { connectDB } from '@/lib/db';
 import { User } from '@/models/User';
 import CredentialsProvider from 'next-auth/providers/credentials';
+import { IUser } from '@/models/User';
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -17,32 +18,38 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
-          await Promise.race([
+          // Single database connection with optimized timeout
+          const connection = await Promise.race([
             connectDB(),
             new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Connection timeout')), 10000)
+              setTimeout(() => reject(new Error('Database connection timeout')), 5000)
             )
           ]);
 
+          // Single query to get user with lean() for better performance
           const user = await Promise.race([
-            User.findOne({ email: credentials.email.toLowerCase() }),
+            User.findOne({ email: credentials.email.toLowerCase() }).lean<IUser>(),
             new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Query timeout')), 5000)
+              setTimeout(() => reject(new Error('User lookup timeout')), 3000)
             )
           ]);
 
           if (!user) {
+            console.log('No user found with email:', credentials.email);
             return null;
           }
 
+          // Create User instance for password comparison
+          const userInstance = new User(user);
           const isPasswordValid = await Promise.race([
-            user.comparePassword(credentials.password),
+            userInstance.comparePassword(credentials.password),
             new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Password verification timeout')), 5000)
+              setTimeout(() => reject(new Error('Password verification timeout')), 3000)
             )
           ]);
 
           if (!isPasswordValid) {
+            console.log('Invalid password for user:', credentials.email);
             return null;
           }
 
@@ -53,6 +60,7 @@ export const authOptions: NextAuthOptions = {
           };
         } catch (error) {
           console.error('Auth error:', error);
+          // Return null instead of throwing to prevent 500 errors
           return null;
         }
       },
