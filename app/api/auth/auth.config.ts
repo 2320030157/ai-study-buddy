@@ -15,15 +15,22 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
+          console.log('Missing credentials');
           throw new Error('Please enter both email and password');
         }
 
         try {
+          console.log('Debug: Starting authentication process');
+          console.log('Debug: MONGODB_URI exists:', !!process.env.MONGODB_URI);
+          console.log('Debug: NEXTAUTH_SECRET exists:', !!process.env.NEXTAUTH_SECRET);
+          
           console.log('Attempting to connect to MongoDB...');
           await connectDB();
           console.log('MongoDB connected successfully');
+          console.log('Debug: MongoDB connection state:', mongoose.connection.readyState);
 
           // Find user and explicitly include password
+          console.log('Debug: Looking up user:', credentials.email.toLowerCase());
           const user = await User.findOne({ 
             email: credentials.email.toLowerCase() 
           }).select('+password');
@@ -33,6 +40,7 @@ export const authOptions: NextAuthOptions = {
             return null;
           }
 
+          console.log('Debug: User found, comparing password');
           // Direct password comparison
           const isValid = await bcrypt.compare(credentials.password, user.password);
 
@@ -42,19 +50,24 @@ export const authOptions: NextAuthOptions = {
           }
 
           console.log('Authentication successful');
+          console.log('Debug: Returning user data');
           return {
             id: user._id.toString(),
             email: user.email,
             name: user.name,
           };
         } catch (error) {
-          console.error('Auth error details:', error);
+          console.error('Auth error details:', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            stack: error instanceof Error ? error.stack : undefined,
+            mongooseConnection: mongoose.connection.readyState
+          });
           return null;
         }
       },
     }),
   ],
-  debug: process.env.NODE_ENV === 'development',
+  debug: true, // Enable debug mode
   pages: {
     signIn: '/login',
     error: '/login',
