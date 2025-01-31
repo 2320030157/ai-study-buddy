@@ -33,18 +33,18 @@ export const authOptions: NextAuthOptions = {
               hasEmail: !!credentials?.email, 
               hasPassword: !!credentials?.password 
             });
-            throw new Error('Please provide both email and password');
+            return null;
           }
 
           console.log('🔍 Looking for user with email:', credentials.email.toLowerCase());
           
           const user = await User.findOne({ 
             email: credentials.email.toLowerCase() 
-          }).select('+password');  // Explicitly select password field
+          }).select('+password');
 
           if (!user) {
             console.log('🔴 No user found with email:', credentials.email);
-            throw new Error('Invalid email or password');
+            return null;
           }
 
           console.log('🟢 User found:', { 
@@ -53,15 +53,11 @@ export const authOptions: NextAuthOptions = {
             hasPassword: !!user.password 
           });
 
-          console.log('🔐 Comparing passwords...');
-          const isValid = await bcrypt.compare(
-            credentials.password,
-            user.password
-          );
+          const isValid = await user.comparePassword(credentials.password);
 
           if (!isValid) {
             console.log('🔴 Password comparison failed for user:', user.email);
-            throw new Error('Invalid email or password');
+            return null;
           }
 
           console.log('🟢 Password matched successfully!');

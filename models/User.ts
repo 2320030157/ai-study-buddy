@@ -32,7 +32,8 @@ const userSchema = new mongoose.Schema({
   password: {
     type: String,
     required: [true, 'Please provide a password'],
-    minlength: [6, 'Password must be at least 6 characters long']
+    minlength: [6, 'Password must be at least 6 characters long'],
+    select: false // Don't include password by default
   },
   studyPreferences: {
     subjects: {
@@ -73,5 +74,15 @@ userSchema.methods.comparePassword = async function(candidatePassword: string): 
     throw error;
   }
 };
+
+// Add this to ensure password is included when needed
+userSchema.pre(/^find/, function(next) {
+  // @ts-ignore
+  if (this._conditions.email) {
+    // @ts-ignore
+    this.select('+password');
+  }
+  next();
+});
 
 export const User = mongoose.models.User || mongoose.model<IUser>('User', userSchema); 
