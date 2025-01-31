@@ -7,60 +7,73 @@ import bcrypt from 'bcryptjs';
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
-      name: 'credentials',
+      id: 'credentials',
+      name: 'Credentials',
       credentials: {
-        email: { label: 'Email', type: 'text' },
-        password: { label: 'Password', type: 'password' }
+        email: { 
+          label: 'Email', 
+          type: 'email',
+          placeholder: 'Enter your email' 
+        },
+        password: { 
+          label: 'Password', 
+          type: 'password',
+          placeholder: 'Enter your password'
+        }
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          throw new Error('Please enter both email and password');
-        }
-
         try {
           await connectDB();
 
-          // Find user by email (no lean, no select)
+          if (!credentials?.email || !credentials?.password) {
+            throw new Error('Please provide both email and password');
+          }
+
           const user = await User.findOne({ 
             email: credentials.email.toLowerCase() 
           });
 
           if (!user) {
-            throw new Error('No user found with this email');
+            throw new Error('Invalid email or password');
           }
 
-          // Compare passwords
-          const isValidPassword = await bcrypt.compare(
-            credentials.password,
-            user.password
-          );
+          const isValid = await bcrypt.compare(credentials.password, user.password);
 
-          if (!isValidPassword) {
-            throw new Error('Invalid password');
+          if (!isValid) {
+            throw new Error('Invalid email or password');
           }
 
-          // Return only the necessary user data
           return {
             id: user._id.toString(),
             email: user.email,
             name: user.name
           };
         } catch (error) {
-          throw error;
+          console.error('Auth error:', error);
+          return null;
         }
-      },
-    }),
+      }
+    })
   ],
-  session: { 
-    strategy: 'jwt',
-    maxAge: 24 * 60 * 60 // 24 hours
+  pages: {
+    signIn: '/login',
+    error: '/login'
   },
   callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
-        token.email = user.email;
-        token.name = user.name;
+    async signIn({ user, account }) {
+      if (account?.provider === 'credentials') {
+        return true;
+      }
+      return false;
+    },
+    async jwt({ token, user, account }) {
+      if (account && user) {
+        return {
+          ...token,
+          id: user.id,
+          email: user.email,
+          name: user.name
+        };
       }
       return token;
     },
@@ -73,9 +86,10 @@ export const authOptions: NextAuthOptions = {
       return session;
     }
   },
-  pages: {
-    signIn: '/login',
-    error: '/login'
+  session: {
+    strategy: 'jwt',
+    maxAge: 24 * 60 * 60 // 24 hours
   },
-  secret: process.env.NEXTAUTH_SECRET
+  secret: process.env.NEXTAUTH_SECRET,
+  debug: process.env.NODE_ENV === 'development'
 }; 
