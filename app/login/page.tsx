@@ -27,12 +27,18 @@ export default function Login() {
         email: formData.email.toLowerCase(),
         password: formData.password,
         redirect: false,
+        callbackUrl: '/chat'
       });
 
       console.log('Sign in result:', result);
 
+      if (result?.error) {
+        setError(result.error);
+        return;
+      }
+
       if (!result?.ok) {
-        setError(result?.error || 'Invalid email or password');
+        setError('Failed to sign in. Please try again.');
         return;
       }
 

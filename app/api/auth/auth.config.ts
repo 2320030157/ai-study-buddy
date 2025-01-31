@@ -14,30 +14,23 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          console.log('Missing credentials');
-          return null;
+          throw new Error('Please enter both email and password');
         }
 
         try {
           console.log('Attempting to connect to MongoDB...');
-          // Single database connection with optimized timeout
-          await Promise.race([
-            connectDB(),
-            new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Database connection timeout')), 5000)
-            )
-          ]);
+          await connectDB();
           console.log('MongoDB connected successfully');
 
           // Single query to get user
           console.log('Looking up user:', credentials.email.toLowerCase());
           const user = await User.findOne({ 
             email: credentials.email.toLowerCase() 
-          }).select('+password');  // Explicitly select password field
+          });
 
           if (!user) {
             console.log('No user found with email:', credentials.email);
-            return null;
+            throw new Error('Invalid email or password');
           }
 
           console.log('User found, verifying password...');
@@ -45,7 +38,7 @@ export const authOptions: NextAuthOptions = {
 
           if (!isPasswordValid) {
             console.log('Invalid password for user:', credentials.email);
-            return null;
+            throw new Error('Invalid email or password');
           }
 
           console.log('Password verified successfully');
@@ -60,7 +53,12 @@ export const authOptions: NextAuthOptions = {
             stack: error instanceof Error ? error.stack : undefined,
             mongooseConnection: mongoose.connection.readyState
           });
-          return null;
+          
+          // Throw specific error messages
+          if (error instanceof Error) {
+            throw new Error(error.message);
+          }
+          throw new Error('An error occurred during authentication');
         }
       },
     }),
