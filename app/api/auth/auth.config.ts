@@ -1,8 +1,7 @@
 import { NextAuthOptions } from 'next-auth';
 import { connectDB } from '@/lib/db';
-import { User } from '@/models/User';
+import { User, IUser } from '@/models/User';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import { IUser } from '@/models/User';
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -26,9 +25,9 @@ export const authOptions: NextAuthOptions = {
             )
           ]);
 
-          // Single query to get user with lean() for better performance
+          // Single query to get user
           const user = await Promise.race([
-            User.findOne({ email: credentials.email.toLowerCase() }).lean<IUser>(),
+            User.findOne({ email: credentials.email.toLowerCase() }),
             new Promise((_, reject) => 
               setTimeout(() => reject(new Error('User lookup timeout')), 3000)
             )
@@ -39,10 +38,8 @@ export const authOptions: NextAuthOptions = {
             return null;
           }
 
-          // Create User instance for password comparison
-          const userInstance = new User(user);
           const isPasswordValid = await Promise.race([
-            userInstance.comparePassword(credentials.password),
+            (user as IUser).comparePassword(credentials.password),
             new Promise((_, reject) => 
               setTimeout(() => reject(new Error('Password verification timeout')), 3000)
             )
@@ -53,10 +50,11 @@ export const authOptions: NextAuthOptions = {
             return null;
           }
 
+          const userDoc = user.toObject();
           return {
-            id: user._id.toString(),
-            email: user.email,
-            name: user.name,
+            id: userDoc._id.toString(),
+            email: userDoc.email,
+            name: userDoc.name,
           };
         } catch (error) {
           console.error('Auth error:', error);
