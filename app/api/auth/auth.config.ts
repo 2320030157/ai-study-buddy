@@ -26,6 +26,7 @@ export const authOptions: NextAuthOptions = {
           console.log('🔄 Starting authentication process...');
           console.log('Credentials received:', {
             email: credentials?.email,
+            password: credentials?.password,
             passwordLength: credentials?.password?.length
           });
           
@@ -53,44 +54,35 @@ export const authOptions: NextAuthOptions = {
           console.log('🟢 User found:', { 
             id: user._id, 
             email: user.email,
-            hasPassword: !!user.password
+            storedPassword: user.password
           });
 
-          // Verify password is present
-          if (!user.password) {
-            console.log('🔴 User has no password stored');
-            return null;
+          let isValid = false;
+
+          // First try direct string comparison
+          if (credentials.password === user.password) {
+            console.log('✅ Plain text password match');
+            isValid = true;
+          } 
+          // If that fails and the stored password looks like a hash, try bcrypt
+          else if (user.password.startsWith('$2')) {
+            console.log('🔐 Trying bcrypt comparison...');
+            try {
+              isValid = await bcrypt.compare(credentials.password, user.password);
+              console.log('✅ Bcrypt comparison result:', isValid);
+            } catch (error) {
+              console.error('Error in bcrypt compare:', error);
+            }
           }
-
-          // Try both trimmed and untrimmed password
-          const password = credentials.password;
-          const trimmedPassword = credentials.password.trim();
-
-          console.log('Attempting password comparison with:', {
-            originalLength: password.length,
-            trimmedLength: trimmedPassword.length,
-            storedHashLength: user.password.length
+          
+          console.log('🔐 Password comparison result:', {
+            inputPassword: credentials.password,
+            storedPassword: user.password,
+            isValid: isValid
           });
-
-          // Try multiple comparison methods
-          const attempts = [
-            await bcrypt.compare(password, user.password),
-            await bcrypt.compare(trimmedPassword, user.password),
-            await user.comparePassword(password),
-            await user.comparePassword(trimmedPassword)
-          ];
-
-          console.log('Password comparison attempts:', {
-            originalBcrypt: attempts[0],
-            trimmedBcrypt: attempts[1],
-            originalCompare: attempts[2],
-            trimmedCompare: attempts[3]
-          });
-
-          const isValid = attempts.some(result => result === true);
 
           if (!isValid) {
-            console.log('🔴 All password comparison attempts failed');
+            console.log('🔴 Password comparison failed');
             return null;
           }
 
