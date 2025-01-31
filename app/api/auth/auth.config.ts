@@ -33,42 +33,27 @@ export const authOptions: NextAuthOptions = {
           console.log('🟢 Connected to MongoDB successfully');
 
           if (!credentials?.email || !credentials?.password) {
-            console.log('🔴 Missing credentials:', { 
-              hasEmail: !!credentials?.email, 
-              hasPassword: !!credentials?.password 
-            });
+            console.log('🔴 Missing credentials');
             return null;
           }
 
           const normalizedEmail = credentials.email.toLowerCase().trim();
-          console.log('🔍 Looking for user with normalized email:', normalizedEmail);
+          console.log('🔍 Looking for user with email:', normalizedEmail);
           
-          // First try exact match
-          let user = await User.findOne({ 
+          // Find user with exact email match
+          const user = await User.findOne({ 
             email: normalizedEmail 
           }).select('+password');
 
-          // If no exact match, try case-insensitive
-          if (!user) {
-            console.log('No exact match, trying case-insensitive search');
-            user = await User.findOne({
-              email: new RegExp('^' + normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i')
-            }).select('+password');
-          }
-
           if (!user) {
             console.log('🔴 No user found with email:', normalizedEmail);
-            // List all users for debugging
-            const allUsers = await User.find({}).select('email');
-            console.log('Available users:', allUsers.map(u => u.email));
             return null;
           }
 
           console.log('🟢 User found:', { 
             id: user._id, 
             email: user.email,
-            hasPassword: !!user.password,
-            passwordLength: user.password?.length
+            hasPassword: !!user.password
           });
 
           // Verify password is present
@@ -77,23 +62,35 @@ export const authOptions: NextAuthOptions = {
             return null;
           }
 
-          // Log password details before comparison
-          console.log('Password details:', {
-            inputPasswordLength: credentials.password.length,
-            storedPasswordLength: user.password.length,
-            storedPasswordStart: user.password.substring(0, 10) + '...'
+          // Try both trimmed and untrimmed password
+          const password = credentials.password;
+          const trimmedPassword = credentials.password.trim();
+
+          console.log('Attempting password comparison with:', {
+            originalLength: password.length,
+            trimmedLength: trimmedPassword.length,
+            storedHashLength: user.password.length
           });
 
-          // Use direct bcrypt compare for debugging
-          const isValid = await bcrypt.compare(credentials.password, user.password);
-          console.log('🔐 Password comparison result:', {
-            inputPasswordLength: credentials.password.length,
-            storedPasswordLength: user.password.length,
-            isValid: isValid
+          // Try multiple comparison methods
+          const attempts = [
+            await bcrypt.compare(password, user.password),
+            await bcrypt.compare(trimmedPassword, user.password),
+            await user.comparePassword(password),
+            await user.comparePassword(trimmedPassword)
+          ];
+
+          console.log('Password comparison attempts:', {
+            originalBcrypt: attempts[0],
+            trimmedBcrypt: attempts[1],
+            originalCompare: attempts[2],
+            trimmedCompare: attempts[3]
           });
+
+          const isValid = attempts.some(result => result === true);
 
           if (!isValid) {
-            console.log('🔴 Password comparison failed for user:', user.email);
+            console.log('🔴 All password comparison attempts failed');
             return null;
           }
 
@@ -107,7 +104,6 @@ export const authOptions: NextAuthOptions = {
         } catch (error: any) {
           console.error('🔴 Authentication error:', {
             message: error.message,
-            stack: error.stack,
             type: error.constructor.name
           });
           return null;
@@ -121,24 +117,12 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async signIn({ user, account }) {
-      console.log('📝 SignIn callback:', { 
-        userId: user?.id,
-        provider: account?.provider,
-        email: user?.email 
-      });
-      
-      if (account?.provider === 'credentials') {
+      if (account?.provider === 'credentials' && user) {
         return true;
       }
       return false;
     },
     async jwt({ token, user, account }) {
-      console.log('🎟 JWT callback:', { 
-        hasUser: !!user,
-        hasAccount: !!account,
-        tokenEmail: token?.email
-      });
-      
       if (account && user) {
         return {
           ...token,
@@ -150,12 +134,6 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async session({ session, token }) {
-      console.log('🔑 Session callback:', { 
-        hasToken: !!token,
-        hasUser: !!session?.user,
-        sessionEmail: session?.user?.email
-      });
-      
       if (session.user) {
         session.user.id = token.id as string;
         session.user.email = token.email as string;
@@ -169,5 +147,5 @@ export const authOptions: NextAuthOptions = {
     maxAge: 24 * 60 * 60 // 24 hours
   },
   secret: process.env.NEXTAUTH_SECRET,
-  debug: true // Always enable debug mode to catch issues
+  debug: true
 }; 
