@@ -24,6 +24,10 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         try {
           console.log('🔄 Starting authentication process...');
+          console.log('Credentials received:', {
+            email: credentials?.email,
+            passwordLength: credentials?.password?.length
+          });
           
           await connectDB();
           console.log('🟢 Connected to MongoDB successfully');
@@ -36,31 +40,63 @@ export const authOptions: NextAuthOptions = {
             return null;
           }
 
-          console.log('🔍 Looking for user with email:', credentials.email.toLowerCase());
+          const normalizedEmail = credentials.email.toLowerCase().trim();
+          console.log('🔍 Looking for user with normalized email:', normalizedEmail);
           
-          const user = await User.findOne({ 
-            email: credentials.email.toLowerCase() 
+          // First try exact match
+          let user = await User.findOne({ 
+            email: normalizedEmail 
           }).select('+password');
 
+          // If no exact match, try case-insensitive
           if (!user) {
-            console.log('🔴 No user found with email:', credentials.email);
+            console.log('No exact match, trying case-insensitive search');
+            user = await User.findOne({
+              email: new RegExp('^' + normalizedEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i')
+            }).select('+password');
+          }
+
+          if (!user) {
+            console.log('🔴 No user found with email:', normalizedEmail);
+            // List all users for debugging
+            const allUsers = await User.find({}).select('email');
+            console.log('Available users:', allUsers.map(u => u.email));
             return null;
           }
 
           console.log('🟢 User found:', { 
             id: user._id, 
             email: user.email,
-            hasPassword: !!user.password 
+            hasPassword: !!user.password,
+            passwordLength: user.password?.length
           });
 
-          const isValid = await user.comparePassword(credentials.password);
+          // Verify password is present
+          if (!user.password) {
+            console.log('🔴 User has no password stored');
+            return null;
+          }
+
+          // Log password details before comparison
+          console.log('Password details:', {
+            inputPasswordLength: credentials.password.length,
+            storedPasswordLength: user.password.length,
+            storedPasswordStart: user.password.substring(0, 10) + '...'
+          });
+
+          // Use direct bcrypt compare for debugging
+          const isValid = await bcrypt.compare(credentials.password, user.password);
+          console.log('🔐 Password comparison result:', {
+            inputPasswordLength: credentials.password.length,
+            storedPasswordLength: user.password.length,
+            isValid: isValid
+          });
 
           if (!isValid) {
             console.log('🔴 Password comparison failed for user:', user.email);
             return null;
           }
 
-          console.log('🟢 Password matched successfully!');
           console.log('✅ Authentication successful for user:', user.email);
 
           return {
@@ -71,7 +107,8 @@ export const authOptions: NextAuthOptions = {
         } catch (error: any) {
           console.error('🔴 Authentication error:', {
             message: error.message,
-            stack: error.stack
+            stack: error.stack,
+            type: error.constructor.name
           });
           return null;
         }
@@ -86,7 +123,8 @@ export const authOptions: NextAuthOptions = {
     async signIn({ user, account }) {
       console.log('📝 SignIn callback:', { 
         userId: user?.id,
-        provider: account?.provider 
+        provider: account?.provider,
+        email: user?.email 
       });
       
       if (account?.provider === 'credentials') {
@@ -97,7 +135,8 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user, account }) {
       console.log('🎟 JWT callback:', { 
         hasUser: !!user,
-        hasAccount: !!account
+        hasAccount: !!account,
+        tokenEmail: token?.email
       });
       
       if (account && user) {
@@ -113,7 +152,8 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       console.log('🔑 Session callback:', { 
         hasToken: !!token,
-        hasUser: !!session?.user 
+        hasUser: !!session?.user,
+        sessionEmail: session?.user?.email
       });
       
       if (session.user) {
