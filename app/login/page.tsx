@@ -22,21 +22,25 @@ export default function Login() {
     setError('');
 
     try {
+      console.log('Attempting to sign in...');
       const result = await signIn('credentials', {
         email: formData.email.toLowerCase(),
         password: formData.password,
         redirect: false,
       });
 
+      console.log('Sign in result:', result);
+
       if (!result?.ok) {
-        setError('Invalid email or password');
+        setError(result?.error || 'Invalid email or password');
         return;
       }
 
       router.push('/chat');
       router.refresh();
     } catch (err) {
-      setError('Invalid email or password');
+      console.error('Sign in error:', err);
+      setError('An error occurred during sign in. Please try again.');
     } finally {
       setLoading(false);
     }

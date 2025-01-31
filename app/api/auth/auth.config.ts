@@ -2,6 +2,7 @@ import { NextAuthOptions } from 'next-auth';
 import { connectDB } from '@/lib/db';
 import { User, IUser } from '@/models/User';
 import CredentialsProvider from 'next-auth/providers/credentials';
+import mongoose from 'mongoose';
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -13,57 +14,58 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
+          console.log('Missing credentials');
           return null;
         }
 
         try {
+          console.log('Attempting to connect to MongoDB...');
           // Single database connection with optimized timeout
-          const connection = await Promise.race([
+          await Promise.race([
             connectDB(),
             new Promise((_, reject) => 
               setTimeout(() => reject(new Error('Database connection timeout')), 5000)
             )
           ]);
+          console.log('MongoDB connected successfully');
 
           // Single query to get user
-          const user = await Promise.race([
-            User.findOne({ email: credentials.email.toLowerCase() }),
-            new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('User lookup timeout')), 3000)
-            )
-          ]);
+          console.log('Looking up user:', credentials.email.toLowerCase());
+          const user = await User.findOne({ 
+            email: credentials.email.toLowerCase() 
+          }).select('+password');  // Explicitly select password field
 
           if (!user) {
             console.log('No user found with email:', credentials.email);
             return null;
           }
 
-          const isPasswordValid = await Promise.race([
-            (user as IUser).comparePassword(credentials.password),
-            new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Password verification timeout')), 3000)
-            )
-          ]);
+          console.log('User found, verifying password...');
+          const isPasswordValid = await user.comparePassword(credentials.password);
 
           if (!isPasswordValid) {
             console.log('Invalid password for user:', credentials.email);
             return null;
           }
 
-          const userDoc = user.toObject();
+          console.log('Password verified successfully');
           return {
-            id: userDoc._id.toString(),
-            email: userDoc.email,
-            name: userDoc.name,
+            id: user._id.toString(),
+            email: user.email,
+            name: user.name,
           };
         } catch (error) {
-          console.error('Auth error:', error);
-          // Return null instead of throwing to prevent 500 errors
+          console.error('Auth error details:', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            stack: error instanceof Error ? error.stack : undefined,
+            mongooseConnection: mongoose.connection.readyState
+          });
           return null;
         }
       },
     }),
   ],
+  debug: process.env.NODE_ENV === 'development',
   pages: {
     signIn: '/login',
     error: '/login',
