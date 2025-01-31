@@ -1,9 +1,14 @@
 import { NextAuthOptions } from 'next-auth';
 import { connectDB } from '@/lib/db';
-import { User } from '@/models/User';
+import { User, IUser } from '@/models/User';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import mongoose from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import bcrypt from 'bcryptjs';
+
+interface UserWithPassword extends IUser {
+  password: string;
+  _id: Types.ObjectId;
+}
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -15,66 +20,52 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          console.log('Missing credentials');
-          throw new Error('Please enter both email and password');
+          return null;
         }
 
         try {
-          console.log('Debug: Starting authentication process');
-          console.log('Debug: MONGODB_URI exists:', !!process.env.MONGODB_URI);
-          console.log('Debug: NEXTAUTH_SECRET exists:', !!process.env.NEXTAUTH_SECRET);
-          
-          console.log('Attempting to connect to MongoDB...');
           await connectDB();
-          console.log('MongoDB connected successfully');
-          console.log('Debug: MongoDB connection state:', mongoose.connection.readyState);
 
-          // Find user and explicitly include password
-          console.log('Debug: Looking up user:', credentials.email.toLowerCase());
+          // Explicitly select password field for comparison
           const user = await User.findOne({ 
             email: credentials.email.toLowerCase() 
-          }).select('+password');
+          }).select('+password').lean() as UserWithPassword | null;
 
-          if (!user) {
-            console.log('No user found with email:', credentials.email);
+          if (!user || !user.password) {
             return null;
           }
 
-          console.log('Debug: User found, comparing password');
-          // Direct password comparison
-          const isValid = await bcrypt.compare(credentials.password, user.password);
+          // Compare the provided password with the hashed password
+          const isValid = await bcrypt.compare(
+            credentials.password,
+            user.password
+          );
 
           if (!isValid) {
-            console.log('Invalid password for user:', credentials.email);
             return null;
           }
 
-          console.log('Authentication successful');
-          console.log('Debug: Returning user data');
+          // Return user without password
           return {
             id: user._id.toString(),
             email: user.email,
             name: user.name,
           };
         } catch (error) {
-          console.error('Auth error details:', {
-            error: error instanceof Error ? error.message : 'Unknown error',
-            stack: error instanceof Error ? error.stack : undefined,
-            mongooseConnection: mongoose.connection.readyState
-          });
+          console.error('Authentication error occurred');
           return null;
         }
       },
     }),
   ],
-  debug: true, // Enable debug mode
+  debug: process.env.NODE_ENV === 'development',
   pages: {
     signIn: '/login',
     error: '/login',
   },
   session: {
     strategy: 'jwt',
-    maxAge: 30 * 24 * 60 * 60, // 30 days
+    maxAge: 24 * 60 * 60, // 24 hours
   },
   callbacks: {
     async jwt({ token, user }) {
@@ -95,4 +86,15 @@ export const authOptions: NextAuthOptions = {
     },
   },
   secret: process.env.NEXTAUTH_SECRET,
+  cookies: {
+    sessionToken: {
+      name: process.env.NODE_ENV === 'production' ? '__Secure-next-auth.session-token' : 'next-auth.session-token',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production'
+      }
+    }
+  }
 }; 
