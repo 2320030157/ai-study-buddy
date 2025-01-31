@@ -1,8 +1,9 @@
 import { NextAuthOptions } from 'next-auth';
 import { connectDB } from '@/lib/db';
-import { User, IUser } from '@/models/User';
+import { User } from '@/models/User';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -22,43 +23,33 @@ export const authOptions: NextAuthOptions = {
           await connectDB();
           console.log('MongoDB connected successfully');
 
-          // Single query to get user
-          console.log('Looking up user:', credentials.email.toLowerCase());
+          // Find user and explicitly include password
           const user = await User.findOne({ 
             email: credentials.email.toLowerCase() 
-          });
+          }).select('+password');
 
           if (!user) {
             console.log('No user found with email:', credentials.email);
-            throw new Error('Invalid email or password');
+            return null;
           }
 
-          console.log('User found, verifying password...');
-          const isPasswordValid = await user.comparePassword(credentials.password);
+          // Direct password comparison
+          const isValid = await bcrypt.compare(credentials.password, user.password);
 
-          if (!isPasswordValid) {
+          if (!isValid) {
             console.log('Invalid password for user:', credentials.email);
-            throw new Error('Invalid email or password');
+            return null;
           }
 
-          console.log('Password verified successfully');
+          console.log('Authentication successful');
           return {
             id: user._id.toString(),
             email: user.email,
             name: user.name,
           };
         } catch (error) {
-          console.error('Auth error details:', {
-            error: error instanceof Error ? error.message : 'Unknown error',
-            stack: error instanceof Error ? error.stack : undefined,
-            mongooseConnection: mongoose.connection.readyState
-          });
-          
-          // Throw specific error messages
-          if (error instanceof Error) {
-            throw new Error(error.message);
-          }
-          throw new Error('An error occurred during authentication');
+          console.error('Auth error details:', error);
+          return null;
         }
       },
     }),
